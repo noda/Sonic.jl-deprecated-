@@ -2,3 +2,8 @@
 *.jl.*.cov
 *.jl.mem
 deps/deps.jl
+# ignore .DS_Store everywhere
+**/.DS_Store 
+# ignore Sonic/Secrets
+Sonic/Secrets/*
+Sonic/Secrets.jl
