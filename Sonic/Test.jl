@@ -1,4 +1,3 @@
-
 module Linckii
 
 struct Connection
