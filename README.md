@@ -1,2 +1,2 @@
-# sonic_julia
-Julia modules for analytics and control.
+# Sonic.jl
+Julia package for analytics and control.
