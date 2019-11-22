@@ -1,7 +1,8 @@
 # Sonic.jl
 Julia package for analytics and control.
 
-Example use in Julia REPL:
+Example use in Julia REPL, with secret key in
+```~Sonic.jl/src/LinckiiSecrets.jl```:
 
 ```
 (v1.2) pkg> activate .
