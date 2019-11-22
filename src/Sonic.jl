@@ -1,5 +1,7 @@
 module Sonic
 
-greet() = print("Hello World!")
+include("Evo.jl")
+include("Linckii.jl")
+include("Nodosus.jl")
 
-end # module
+end
