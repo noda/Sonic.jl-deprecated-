@@ -1,7 +1,7 @@
 module Nodosus
 
-export greet
+import JuliaDB
 
-greet() = println("Hello, World!")
+# only cleaning and updating of local tables, no API
 
 end

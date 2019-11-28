@@ -7,3 +7,4 @@ deps/deps.jl
 **/.DS_Store
 **/.ipynb_checkpoints
 **/*Secrets.jl
+**/*.db
