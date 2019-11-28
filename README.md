@@ -2,30 +2,26 @@
 Julia package for analytics and control.
 
 Example use in Julia REPL, with secret key in
-```~Sonic.jl/src/LinckiiSecrets.jl```:
+```~/MyCode/Sonic.jl/src/LinckiiSecrets.jl```:
 
 ```
 (v1.2) pkg> activate .
-Activating environment at `~/Sonic.jl/Project.toml`
+Activating environment at `~/MyCode/Sonic.jl/Project.toml`
 
 julia> import Sonic
+[ Info: ...]
 
-julia> Sonic.Linckii.get_site_structure("keab")
-Table with 4721 rows, 13 columns:
+julia> Sonic.Linckii.get_nodes("keab")
+Table with 279 rows, 8 columns:
 Columns:
-#   colname             type
-──────────────────────────────
-1   sensor_id           Int64
-2   device_id           Int64
-3   node_enabled        Bool
-4   node_name           String
-5   node_public         Bool
-6   node_description    String
-7   node_owner          Bool
-8   node_id             Int64
-9   protocol_id         Int64
-10  device_name         String
-11  sensor_unit         Any
-12  sensor_name         String
-13  sensor_description  String
+#  colname           type
+─────────────────────────────────
+1  node_public       Bool
+2  node_name         String
+3  device_id         Int64
+4  node_id           Int64
+5  node_owner        Bool
+6  node_enabled      Bool
+7  sensor_ids        Array{Any,1}
+8  node_description  String
 ```
