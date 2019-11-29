@@ -3,7 +3,7 @@ module Linckii
 import Dates
 import HTTP
 import JSON
-import JuliaDB
+import JuliaDB # https://github.com/JuliaComputing/JuliaDB.jl/issues/292
 import Unitful
 
 include("LinckiiSecrets.jl")

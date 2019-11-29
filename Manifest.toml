@@ -98,9 +98,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[DoubleFloats]]
 deps = ["GenericSVD", "GenericSchur", "LinearAlgebra", "Polynomials", "Printf", "Quadmath", "Random", "Requires", "SpecialFunctions"]
-git-tree-sha1 = "d3f403e885304c26c74f8fb11ce5407c29999c01"
+git-tree-sha1 = "ee8cf90656f68c03c72cc03f1323f78d5b2ed33f"
 uuid = "497a8b3b-efae-58df-a0af-a86822472b78"
-version = "1.0.0"
+version = "1.0.1"
 
 [[FFMPEG]]
 deps = ["BinaryProvider", "Libdl"]
@@ -193,6 +193,8 @@ version = "0.21.0"
 [[JuliaDB]]
 deps = ["Dagger", "DataValues", "Distributed", "Glob", "IndexedTables", "MemPool", "Nullables", "OnlineStats", "OnlineStatsBase", "PooledArrays", "Printf", "Random", "RecipesBase", "Serialization", "Statistics", "StatsBase", "TextParse", "WeakRefStrings"]
 git-tree-sha1 = "a19da3e8b971e65d4859ee13bfae8a06df5681f4"
+repo-rev = "master"
+repo-url = "https://github.com/JuliaComputing/JuliaDB.jl.git"
 uuid = "a93385a2-3734-596a-9a66-3cfbb77141e6"
 version = "0.13.0"
 
