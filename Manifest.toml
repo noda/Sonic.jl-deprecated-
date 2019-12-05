@@ -96,12 +96,6 @@ git-tree-sha1 = "ee8cf90656f68c03c72cc03f1323f78d5b2ed33f"
 uuid = "497a8b3b-efae-58df-a0af-a86822472b78"
 version = "1.0.1"
 
-[[EzXML]]
-deps = ["BinaryProvider", "Libdl", "Printf"]
-git-tree-sha1 = "469de9cb996a9c03f31905619ff3c33e905711f3"
-uuid = "8f5d6c58-4d21-5cfd-889c-e3ad7ee6a615"
-version = "0.9.5"
-
 [[FFMPEG]]
 deps = ["BinaryProvider", "Libdl"]
 git-tree-sha1 = "f65cf703281fb7917beca5ead1c67e6d60ef9597"
@@ -253,11 +247,6 @@ version = "0.4.3"
 
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
-
-[[Mocking]]
-git-tree-sha1 = "bd2623f8b728af988d2afec53d611acb621f3bc4"
-uuid = "78c3b35d-d492-501b-9361-3d52fe80e533"
-version = "0.7.0"
 
 [[NaNMath]]
 git-tree-sha1 = "928b8ca9b2791081dc71a51c55347c27c618760f"
@@ -473,12 +462,6 @@ deps = ["CodecZlib", "DataStructures", "Dates", "DoubleFloats", "Mmap", "Nullabl
 git-tree-sha1 = "26b43d6746b52cca13c4cdef90f89652273b413e"
 uuid = "e0df1984-e451-5cb5-8b61-797a481e67e3"
 version = "0.9.1"
-
-[[TimeZones]]
-deps = ["Dates", "EzXML", "Mocking", "Printf", "Serialization", "Unicode"]
-git-tree-sha1 = "29c7ae3f50f291358043e21db47b3e1a516df891"
-uuid = "f269a46b-ccf7-5d73-abea-4c690281aa53"
-version = "0.10.3"
 
 [[TranscodingStreams]]
 deps = ["Random", "Test"]

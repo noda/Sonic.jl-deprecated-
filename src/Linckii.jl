@@ -4,7 +4,6 @@ import Dates
 import HTTP
 import JSON
 import JuliaDB
-import TimeZones
 import Unitful
 
 function get_access(secret)
@@ -128,7 +127,9 @@ function get_datetime(ts)
 end
 
 function get_timezone(ts)
-    return TimeZones.FixedTimeZone(ts[end - 5 : end])
+    t = Dates.Time(12)
+    z = Dates.Time(ts[end - 4 : end]) - Dates.Time(0)
+    return ts[end - 5] == '-' ? t - z : t + z # 12:00:00±HH:MM
 end
 
 function get_data(access, node_id, sensor_name, dates...; kwargs...)
