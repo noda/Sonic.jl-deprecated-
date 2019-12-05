@@ -3,22 +3,25 @@ module Linckii
 import Dates
 import HTTP
 import JSON
-import JuliaDB # https://github.com/JuliaComputing/JuliaDB.jl/issues/292
+import JuliaDB
+import TimeZones
 import Unitful
 
-include("LinckiiSecrets.jl")
+function get_access(secret)
+    return secret
+end
 
-function get(query, site_name; kwargs...)
-    k = LinckiiSecrets.key[site_name]
-    h = Dict("Authorization" => "Key $(k)")
+function get(access, query; kwargs...)
     response = HTTP.get(
         join(
             [
-                "https://canary.noda.se/~$(site_name)/api/v1/$(query)",
+                "$(access.url)/api/v1/$(query)",
                 ["&$(k)=$(v)" for (k, v) in kwargs]...
             ],
         );
-        headers = h,
+        headers = Dict(
+            "Authorization" => "Key $(access.key)",
+        ),
     )
     return JSON.parse(String(response.body))
 end
@@ -33,8 +36,8 @@ function json_table(json; kwargs...)
     )
 end
 
-function get_nodes(site_name; kwargs...)
-    json = get("node", site_name; kwargs...)["nodes"]
+function get_nodes(access; kwargs...)
+    json = get(access, "node"; kwargs...)["nodes"]
     t = json_table(json, pkey = :id)
     t = JuliaDB.rename(
         t,
@@ -62,8 +65,8 @@ function flatten_nodes(nodes)
     return t
 end
 
-function get_devices(site_name; kwargs...)
-    json = get("device", site_name; kwargs...)["devices"]
+function get_devices(access; kwargs...)
+    json = get(access, "device"; kwargs...)["devices"]
     t = json_table(json, pkey = :id)
     t = JuliaDB.rename(
         t,
@@ -99,8 +102,8 @@ sensor_units = Dict(
     ""          => Unitful.NoUnits,
 )
 
-function get_sensors(site_name; kwargs...)
-    json = get("sensor", site_name; kwargs...)["sensors"]
+function get_sensors(access; kwargs...)
+    json = get(access, "sensor"; kwargs...)["sensors"]
     t = json_table(json, pkey = :id)
     t = JuliaDB.rename(
         t,
@@ -120,36 +123,28 @@ function get_sensors(site_name; kwargs...)
     return t
 end
 
-function get_datetime(timestamp)
-    dt = Dates.DateTime(timestamp[1 : 19])
-    return dt
+function get_datetime(ts)
+    return Dates.DateTime(ts[1 : 19])
 end
 
-function get_timezone(timestamp)
-    tz = Dates.CompoundPeriod(
-        Dates.Hour(timestamp[end - 4 : end - 3]),
-        Dates.Minute(timestamp[end - 1 : end]),
-    )
-    tz = timestamp[end - 5] == '-' ? - tz : tz
-    return tz
+function get_timezone(ts)
+    return TimeZones.FixedTimeZone(ts[end - 5 : end])
 end
 
-function get_data(site_name, pkeys, dates...; kwargs...)
+function get_data(access, node_id, sensor_name, dates...; kwargs...)
     json = vcat(
         [
             get(
-                "query/measurement?start=$(a1)&end=$(a2)", site_name;
+                access,
+                "query/measurement?start=$(a1)&end=$(a2)";
                 node_id = node_id, quantity = sensor_name, kwargs...
             )["data"]
-            for (node_id, sensor_name) in pkeys
             for (a1, a2) in zip(dates[1 : end - 1], dates[2 : end])
         ]...
     )
     t = JuliaDB.table(
         [
             (;
-                :node_id => d["facility"],
-                :sensor_name => Symbol(d["quantity"]),
                 :datetime => get_datetime(value["ts"]),
                 :timezone => get_timezone(value["ts"]),
                 :value => value["v"],
@@ -157,9 +152,64 @@ function get_data(site_name, pkeys, dates...; kwargs...)
             for d in json
             for value in d["values"]
         ],
-        pkey = (:node_id, :sensor_name, :datetime),
+        pkey = :datetime,
     )
     return t
+end
+
+function set_data(access, node_id, sensor_name, data; kwargs...)
+    error("not implemented")
+end
+
+function sitepath(access)
+    site_name = split(split(access.url, "://")[2], "/")[2]
+    return joinpath("db", "linckii", site_name)
+end
+
+function savesite(access; kwargs...)
+    path = sitepath(access)
+    mkpath(sitepath(access))
+    for (k, v) in kwargs
+        JuliaDB.save(
+            v,
+            joinpath(path, "$(k).db"),
+        )
+    end
+end
+
+function loadsite(access, args...)
+    path = sitepath(access)
+    return (;
+        (
+            k => JuliaDB.load(
+                joinpath(path, "$(k).db"),
+            )
+            for k in args
+        )...
+    )
+end
+
+function datapath(access, node_id)
+    return joinpath(sitepath(access), "data", "$(node_id)")
+end
+
+function datapath(access, node_id, sensor_name)
+    return joinpath(datapath(access, node_id), String(sensor_name))
+end
+
+function savedata(access, node_id, sensor_name, dates...; kwargs...)
+    data = get_data(access, node_id, sensor_name, dates...; kwargs...)
+    mkpath(datapath(access, node_id))
+    JuliaDB.save(
+        data,
+        "$(datapath(access, node_id, sensor_name)).db",
+    )
+end
+
+function loaddata(access, node_id, sensor_name)
+    return JuliaDB.load(
+        "$(datapath(access, node_id, sensor_name)).db",
+    )
 end
 
 end
