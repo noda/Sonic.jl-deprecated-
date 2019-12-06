@@ -13,10 +13,10 @@ end
 function get(access, query; kwargs...)
     response = HTTP.get(
         join(
-            [
+            (
                 "$(access.url)/api/v1/$(query)",
-                ["&$(k)=$(v)" for (k, v) in kwargs]...
-            ],
+                ("&$(k)=$(v)" for (k, v) in kwargs])...
+            ),
         );
         headers = Dict(
             "Authorization" => "Key $(access.key)",
@@ -133,18 +133,18 @@ function get_timezone(ts)
 end
 
 function get_data(access, node_id, sensor_name, dates...; kwargs...)
-    json = vcat(
-        [
+    json = Iterators.flatten(
+        (
             get(
                 access,
-                "query/measurement?start=$(a1)&end=$(a2)";
+                "query/measurement?start=$(s)&end=$(e)";
                 node_id = node_id, quantity = sensor_name, kwargs...
             )["data"]
-            for (a1, a2) in zip(dates[1 : end - 1], dates[2 : end])
-        ]...
+            for (s, e) in zip(dates[1 : end - 1], dates[2 : end])
+        ),
     )
     t = JuliaDB.table(
-        [
+        (
             (;
                 :datetime => get_datetime(value["ts"]),
                 :timezone => get_timezone(value["ts"]),
@@ -152,7 +152,7 @@ function get_data(access, node_id, sensor_name, dates...; kwargs...)
             )
             for d in json
             for value in d["values"]
-        ],
+        ),
         pkey = :datetime,
     )
     return t

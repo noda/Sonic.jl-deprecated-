@@ -1,113 +1,128 @@
 module Nodosus
 
-import JuliaDB
+import Dates
+import Statistics
 
-function remove_outliers(data, Tukey_fences, Tukey_freq)
+function remove_repetitions(rows)
+    rows = sort(rows, r -> r.datetime)
+    return Iterators.flatten(
+        (
+            (rows[1],),
+            Iterators.flatten(
+                map(
+                    (s, e) -> s.value == e.value ? () : (e,),
+                    zip(rows[1 : end - 1], rows[2 : end]),
+                ),
+            ),
+        ),
+    )
 end
 
+"""
+    filtertukeysfences(rows; tukeysfences = 3)
 
-# def remove_outliers(dataframe, Tukey_fences, Tukey_freq):
-#     ss = ()
-#     for n, s in dataframe.items():
-#         k, f = remove_outliers_lambdas[n]
-#         # rename from longnames to tags, and rescale
-#         s = f(s.copy(deep=True).rename(k))
-#         if k not in ('ODT_OS', 'ODT_co'):
-#             # remove repeted values
-#             x = s.ffill().values
-#             m = x[1 :] == x[: -1]
-#             s.iloc[1 :].mask(m, inplace=True)
-#             # remove extreme values, grouping to acomodate drift
-#             for _, t in s.groupby(pandas.Grouper(freq=Tukey_freq)):
-#                 x = t.values
-#                 if not numpy.isnan(x).all():
-#                     # adapted from https://en.wikipedia.org/wiki/Outlier#Tukey's_fences
-#                     q1, q2, q3 = numpy.quantile(t.dropna(), [0.25, 0.50, 0.75])
-#                     t.mask(x < q2 + Tukey_fences * (q1 - q2), inplace=True)
-#                     t.mask(x > q2 + Tukey_fences * (q3 - q2), inplace=True)
-#         ss += s,
-#     return pandas.concat(ss, axis=1, copy=False)
-#
-#
-# process_control_lambdas = {
-#     'ODT_OS':
-#     lambda df: 0.0,
-#     'ODT_co':
-#     lambda df: df['ODT'].values,
-# }
-#
-#
-# def process_control(dataframe):
-#     for k, f in process_control_lambdas.items():
-#         if k in dataframe:
-#             try:
-#                 dataframe[k].fillna(f(dataframe), inplace=True)
-#             except:
-#                 pass
-#
-#
-# def compute_sensors(dataframe, freqH):
-#     compute_sensors_lambdas = {
-#         'Day':
-#         lambda df: (
-#             (
-#                 (
-#                     df.index.dayofweek * 24 +
-#                     df.index.hour
-#                 ) * 60 +
-#                 df.index.minute
-#             ) * 60 +
-#             df.index.second
-#         ) / (24 * 60 * 60),
-#         'ODT_OS':
-#         lambda df: df['ODT_co'].values - df['ODT'].values,
-#         'ODT_co':
-#         lambda df: df['ODT_OS'].values + df['ODT'].values,
-#         'Flow':
-#         lambda df: df['Volume'].diff().values * freqH,
-#         'Power':
-#         lambda df: df['Energy'].diff().values * freqH,
-#         'PSTD':
-#         lambda df: df['PS-Supply_T'] - df['PS-Return_T'],
-#         'SSTD':
-#         lambda df: df['SS-Supply_T'] - df['SS-Return_T'],
-#         'GTD':
-#         lambda df: df['PS-Supply_T'] - df['SS-Supply_T'], # District Heating and Cooling, figure 9.21 (p. 393) [°C]
-#         'LTD':
-#         lambda df: df['PS-Return_T'] - df['SS-Return_T'], # District Heating and Cooling, figure 9.21 (p. 393) [°C]
-#         'LMTD':
-#         lambda df: (df['GTD'] - df['LTD']) / (numpy.log(df['GTD']) - numpy.log(df['LTD'])), # District Heating and Cooling, equation 9.7 (p. 394) [°C]
-#         'AK':
-#         lambda df: (df['Power'] / df['LMTD']), # District Heating and Cooling, equation 9.6 (p. 394) [kW / °C]
-#         'NTU':
-#         lambda df: df['PSTD'] / df['LMTD'], # District Heating and Cooling, equation 9.10 (p. 395) []
-#     }
-#     for k, f in compute_sensors_lambdas.items():
-#         if k not in dataframe:
-#             try:
-#                 dataframe[k] = f(dataframe)
-#             except:
-#                 pass
-#     return dataframe
-
-function process_data(data; Tukey_fences=3, Tukey_freq='W', freqH=1, periodsH=1)
+Adapted from https://en.wikipedia.org/wiki/Outlier, #Tukey's_fences.
+"""
+function filtertukeysfences(rows; tukeysfences = 3)
+    q1, q2, q3 = Statistics.quantile(
+        (r.values for r in rows),
+        (0.25, 0.50, 0.75),
+    )
+    fence1 = q2 + tukeysfences * (q1 - q2)
+    fence2 = q2 + tukeysfences * (q3 - q2)
+    return (
+        r
+        for r in rows
+        if (
+            r.value > fence1 &&
+            r.value < fence2
+        )
+    )
 end
 
-# def process_dataframe(dataframe, Tukey_fences=3, Tukey_freq='W', freqH=1, periodsH=1):
-#     # shortcircuit on empty
-#     if dataframe.empty:
-#         return pandas.DataFrame()
-#     # remove repeted values and apply Tukey's fences
-#     df = remove_outliers(dataframe, Tukey_fences, Tukey_freq)
-#     # resample
-#     freq = '{!s}T'.format(60 // freqH)
-#     df = df.resample(freq).mean()
-#     # process missing control values, interpreting missing values as no control
-#     process_control(df)
-#     # interpolate
-#     df.interpolate(limit=(freqH * periodsH), limit_area='inside', inplace=True)
-#     # compute missing sensors
-#     compute_sensors(df, freqH)
-#     return df
+function groupby(rows, by)
+    groups = Dict()
+    for r in rows
+        push!(get!(groups, by(r), Set()), r)
+    end
+    return groups
+end
+
+function filtertukeysfences(rows; tukeysperiod = Dates.Week, kwargs...)
+    return Iterators.flatten(
+        (
+            filtertukeysfences(rows; kwargs...)
+            for rows in values(groupby(rows, by))
+        ),
+    )
+end
+
+function resample(s, e, t)
+    S = Dates.value(e.datetime - t)
+    E = Dates.value(t - s.datetime)
+    T = S + E
+    return (;
+        :datetime => t,
+        :timezone => (
+            S * (s.timezone - Dates.Hour(12)) +
+            E * (e.timezone - Dates.Hour(12))
+        ) / T + Dates.Hour(12),
+        :value => (
+            S * s.value +
+            E * e.value
+        ) / T,
+    )
+end
+
+function resample(s, e, p)
+    return (
+        resample(s, e, t)
+        for t in ceil(s.datetime, p) : p : ceil(e.datetime - p, p)
+    )
+end
+
+function resample(rows, p, q = (s, e) -> true)
+    rows = sort(rows, r -> r.datetime)
+    if typeof(q) <: Dates.Period
+        q = (s, e) -> e.datetime - s.datetime < q
+    end
+    Iterators.flatten(
+        (
+            resample(s, e, period)
+            for (s, e) in zip(rows[1 : end - 1], rows[2 : end])
+            if q(s, e)
+        ),
+    )
+end
+
+"""
+    pp0(rows, p, args...; kwargs...)
+
+Preprocess a control signal, assuming, a.e., `derivative(0, signal) == 0`.
+"""
+function pp0(rows, p, args...; kwargs...)
+    return resample(rows, p, args...)
+end
+
+"""
+    pp1(rows, p, args...; kwargs...)
+
+Preprocess a measure signal, assuming, a.e., `derivative(1, signal) == 0`.
+"""
+function pp1(rows, p, args...; kwargs...)
+    rows = remove_repetitions(rows)
+    rows = filtertukeysfences(rows; kwargs...)
+    return resample(rows, p, args...)
+end
+
+"""
+    pp2(rows, p, args...; kwargs...)
+
+Preprocess a measure signal, assuming, a.e., `derivative(2, signal) == 0`.
+"""
+function pp2(rows, p, args...; kwargs...)
+    rows = remove_repetitions(rows)
+    return resample(rows, p, args...)
+end
 
 end
