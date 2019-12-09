@@ -15,7 +15,7 @@ function get(access, query; kwargs...)
         join(
             (
                 "$(access.url)/api/v1/$(query)",
-                ("&$(k)=$(v)" for (k, v) in kwargs])...
+                ("&$(k)=$(v)" for (k, v) in kwargs)...
             ),
         );
         headers = Dict(
@@ -132,27 +132,34 @@ function get_timezone(ts)
     return ts[end - 5] == '-' ? t - z : t + z # 12:00:00±HH:MM
 end
 
+function get_rows(json)
+    return (
+        (;
+            :datetime => get_datetime(v["ts"]),
+            :timezone => get_timezone(v["ts"]),
+            :value => v["v"],
+        )
+        for d in json
+        for v in d["values"]
+    )
+end
+
 function get_data(access, node_id, sensor_name, dates...; kwargs...)
-    json = Iterators.flatten(
+    rows = Iterators.flatten(
         (
-            get(
-                access,
-                "query/measurement?start=$(s)&end=$(e)";
-                node_id = node_id, quantity = sensor_name, kwargs...
-            )["data"]
+            map(
+                get_rows,
+                get(
+                    access,
+                    "query/measurement?start=$(s)&end=$(e)";
+                    node_id = node_id, quantity = sensor_name, kwargs...
+                )["data"],
+            )
             for (s, e) in zip(dates[1 : end - 1], dates[2 : end])
         ),
     )
     t = JuliaDB.table(
-        (
-            (;
-                :datetime => get_datetime(value["ts"]),
-                :timezone => get_timezone(value["ts"]),
-                :value => value["v"],
-            )
-            for d in json
-            for value in d["values"]
-        ),
+        rows,
         pkey = :datetime,
     )
     return t
@@ -190,8 +197,12 @@ function loadsite(access, args...)
     )
 end
 
+function datapath(access)
+    return joinpath(sitepath(access), "data")
+end
+
 function datapath(access, node_id)
-    return joinpath(sitepath(access), "data", "$(node_id)")
+    return joinpath(datapath(access), "$(node_id)")
 end
 
 function datapath(access, node_id, sensor_name)

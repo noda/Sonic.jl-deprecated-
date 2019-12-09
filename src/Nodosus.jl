@@ -1,6 +1,7 @@
 module Nodosus
 
 import Dates
+import JuliaDB
 import Statistics
 
 function remove_repetitions(rows)
@@ -95,6 +96,13 @@ function resample(rows, p, q = (s, e) -> true)
     )
 end
 
+function tabular(pp_)
+    return (data, p, args...; kwargs...) -> JuliaDB.table(
+        pp_(JuliaDB.rows(data), p, args...; kwargs...);
+        pkey = pkeys(data),
+    )
+end
+
 """
     pp0(rows, p, args...; kwargs...)
 
@@ -102,6 +110,10 @@ Preprocess a control signal, assuming, a.e., `derivative(0, signal) == 0`.
 """
 function pp0(rows, p, args...; kwargs...)
     return resample(rows, p, args...)
+end
+
+function pp0(data, args...; kwargs...)
+    return tabular(pp0)(data, args...; kwargs...)
 end
 
 """
@@ -115,6 +127,10 @@ function pp1(rows, p, args...; kwargs...)
     return resample(rows, p, args...)
 end
 
+function pp1(data, args...; kwargs...)
+    return tabular(pp1)(data, args...; kwargs...)
+end
+
 """
     pp2(rows, p, args...; kwargs...)
 
@@ -123,6 +139,10 @@ Preprocess a measure signal, assuming, a.e., `derivative(2, signal) == 0`.
 function pp2(rows, p, args...; kwargs...)
     rows = remove_repetitions(rows)
     return resample(rows, p, args...)
+end
+
+function pp2(data, args...; kwargs...)
+    return tabular(pp2)(data, args...; kwargs...)
 end
 
 end

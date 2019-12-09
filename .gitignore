@@ -4,8 +4,9 @@
 deps/deps.jl
 
 # ignore everywhere
+
 **/.DS_Store
 **/.ipynb_checkpoints
-**/*.csv
-**/*.db
+
+**/db/*
 **/*Secrets.jl

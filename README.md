@@ -1,17 +1,20 @@
 # Sonic.jl
 Julia package for analytics and control.
 
-Example use in Julia REPL, with secret key in
-```~/MyCode/Sonic.jl/src/LinckiiSecrets.jl```:
+Example use in Julia REPL:
 
 ```
-(v1.2) pkg> activate .
-Activating environment at `~/MyCode/Sonic.jl/Project.toml`
+julia> activate(".")
 
-julia> import Sonic
-[ Info: ...]
+julia> instantiate()
 
-julia> Sonic.Linckii.get_nodes("keab")
+julia> include("./src/Linckii.jl")
+
+julia> include("../src/LinckiiSecrets.jl")
+
+julia> access = Linckii.get_access(LinckiiSecrets.keab)
+
+julia> Sonic.Linckii.get_nodes(access)
 Table with 279 rows, 8 columns:
 Columns:
 #  colname           type
