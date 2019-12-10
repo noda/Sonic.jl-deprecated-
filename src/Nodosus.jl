@@ -4,48 +4,52 @@ import Dates
 import JuliaDB
 import Statistics
 
-function remove_repetitions(rows; by = r -> r.value)
-    rs = [rows[1]]
-    for r in rows[2 : end]
-        if by(r) != by(rs[end])
-            push!(rs, r)
+function partition(f, xs; by = identity)
+    ys = []
+    if !isempty(xs)
+        s = 1
+        b = by(xs[s])
+        e = findnext(x -> by(x) != b, xs, s)
+        while e != nothing
+            push!(ys, f(xs[s : e - 1]))
+            s = e
+            b = by(xs[s])
+            e = findnext(x -> by(x) != b, xs, s)
         end
+        push!(ys, f(xs[s : end]))
     end
-    return rs
-end
-
-function partition(rows; by = identity)
-    rss = [[rows[1]]]
-    for r in rows[2 : end]
-        if by(r) != by(rss[end][end])
-            push!(rss, [r])
-        else
-            push!(rss[end], r)
-        end
-    end
-    return rss
+    return ys
 end
 
 """
-    filtertukeysfences(rows; tukeysfences = 3)
+    dropreps(rows)
+
+Drop repeted elements.
+"""
+function dropreps(rows)
+    return partition(first, rows; by = r -> r.value)
+end
+
+"""
+    filtertf(rows; tf = 3)
 
 Adapted from https://en.wikipedia.org/wiki/Outlier, #Tukey's_fences.
 """
-function filtertukeysfences(rows; by = r -> Dates.week(r.datetime), tukeysfences = 3, kwargs...)
+function filtertf(rows; by = Dates.week, tf = 3, kwargs...)
     rs = []
-    for part in partition(rows; by = by)
+    for part in partition(identity, rows; by = r -> by(r.datetime))
         q1, q2, q3 = Statistics.quantile(
             map(r -> r.value, part),
             (0.25, 0.50, 0.75),
         )
-        fence1 = q2 + tukeysfences * (q1 - q2)
-        fence2 = q2 + tukeysfences * (q3 - q2)
+        f1 = q2 + tf * (q1 - q2)
+        f2 = q2 + tf * (q3 - q2)
         append!(
             rs,
             filter!(
                 r -> (
-                    r.value > fence1 &&
-                    r.value < fence2
+                    r.value > f1 &&
+                    r.value < f2
                 ),
                 part,
             ),
@@ -68,6 +72,8 @@ function interpolate1(s, e, t)
                 E * Dates.value(e.timezone - Dates.Time(12)),
             ),
         ),
+        :node_id => s.node_id,
+        :variable => s.variable,
         :value => (
             S * s.value +
             E * e.value
@@ -83,9 +89,10 @@ function interpolates(s, e, p)
 end
 
 function resample(rows, p, q = (s, e) -> true)
-    Q = q
-    if typeof(Q) <: Dates.Period
+    if typeof(q) <: Dates.Period
         Q = (s, e) -> e.datetime - s.datetime < q
+    else
+        Q = q
     end
     return collect(
         Iterators.flatten(
@@ -99,33 +106,48 @@ function resample(rows, p, q = (s, e) -> true)
 end
 
 """
-    pp0(rows, p, args...; kwargs...)
+    pp0(data, p, args...; kwargs...)
 
 Preprocess a control signal, assuming, a.e., `derivative(0, signal) == 0`.
 """
-function pp0(rows, p, args...; kwargs...)
-    return resample(rows, p, args...)
+function pp0(data, p, args...; kwargs...)
+    rows = JuliaDB.rows(data)
+    rows = resample(rows, p, args...)
+    return JuliaDB.table(
+        rows;
+        pkey = JuliaDB.pkeynames(data),
+    )
 end
 
 """
-    pp1(rows, p, args...; kwargs...)
+    pp1(data, p, args...; kwargs...)
 
 Preprocess a measure signal, assuming, a.e., `derivative(1, signal) == 0`.
 """
-function pp1(rows, p, args...; kwargs...)
-    rows = remove_repetitions(rows)
-    rows = filtertukeysfences(rows; kwargs...)
-    return resample(rows, p, args...)
+function pp1(data, p, args...; kwargs...)
+    rows = JuliaDB.rows(data)
+    rows = dropreps(rows)
+    rows = filtertf(rows; kwargs...)
+    rows = resample(rows, p, args...)
+    return JuliaDB.table(
+        rows;
+        pkey = JuliaDB.pkeynames(data),
+    )
 end
 
 """
-    pp2(rows, p, args...; kwargs...)
+    pp2(data, p, args...; kwargs...)
 
 Preprocess a measure signal, assuming, a.e., `derivative(2, signal) == 0`.
 """
-function pp2(rows, p, args...; kwargs...)
-    rows = remove_repetitions(rows; by = r -> r.value)
-    return resample(rows, p, args...)
+function pp2(data, p, args...; kwargs...)
+    rows = JuliaDB.rows(data)
+    rows = dropreps(rows)
+    rows = resample(rows, p, args...)
+    return JuliaDB.table(
+        rows;
+        pkey = JuliaDB.pkeynames(data),
+    )
 end
 
 end

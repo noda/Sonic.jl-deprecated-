@@ -137,7 +137,9 @@ function get_rows(json)
         (;
             :datetime => get_datetime(v["ts"]),
             :timezone => get_timezone(v["ts"]),
-            :value => v["v"],
+            :node_id => Int64(d["facility"]),
+            :variable => Symbol(d["quantity"]),
+            :value => Float64(v["v"]),
         )
         for d in json
         for v in d["values"]
@@ -145,24 +147,24 @@ function get_rows(json)
 end
 
 function get_data(access, node_id, sensor_name, dates...; kwargs...)
-    rows = Iterators.flatten(
-        (
-            map(
-                get_rows,
-                get(
-                    access,
-                    "query/measurement?start=$(s)&end=$(e)";
-                    node_id = node_id, quantity = sensor_name, kwargs...
-                )["data"],
-            )
-            for (s, e) in zip(dates[1 : end - 1], dates[2 : end])
+    rows = collect(
+        Iterators.flatten(
+            (
+                get_rows(
+                    get(
+                        access,
+                        "query/measurement?start=$(s)&end=$(e)";
+                        node_id = node_id, quantity = sensor_name, kwargs...
+                    )["data"],
+                )
+                for (s, e) in zip(dates[1 : end - 1], dates[2 : end])
+            ),
         ),
     )
-    t = JuliaDB.table(
-        rows,
-        pkey = :datetime,
+    return JuliaDB.table(
+        rows;
+        pkey = (:datetime, :timezone, :node_id),
     )
-    return t
 end
 
 function set_data(access, node_id, sensor_name, data; kwargs...)
