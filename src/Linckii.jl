@@ -18,7 +18,7 @@ function get(access, query; kwargs...)
                 ("&$(k)=$(v)" for (k, v) in kwargs)...
             ),
         );
-        headers = Dict(
+        headers=Dict(
             "Authorization" => "Key $(access.key)",
         ),
     )
@@ -37,7 +37,7 @@ end
 
 function get_nodes(access; kwargs...)
     json = get(access, "node"; kwargs...)["nodes"]
-    t = json_table(json, pkey = :id)
+    t = json_table(json; pkey = :id)
     t = JuliaDB.rename(
         t,
         n => Symbol("node_$(n)")
@@ -66,7 +66,7 @@ end
 
 function get_devices(access; kwargs...)
     json = get(access, "device"; kwargs...)["devices"]
-    t = json_table(json, pkey = :id)
+    t = json_table(json; pkey = :id)
     t = JuliaDB.rename(
         t,
         n => Symbol("device_$(n)")
@@ -103,7 +103,7 @@ sensor_units = Dict(
 
 function get_sensors(access; kwargs...)
     json = get(access, "sensor"; kwargs...)["sensors"]
-    t = json_table(json, pkey = :id)
+    t = json_table(json; pkey = :id)
     t = JuliaDB.rename(
         t,
         n => Symbol("sensor_$(n)")

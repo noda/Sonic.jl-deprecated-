@@ -4,19 +4,26 @@ import Dates
 import JuliaDB
 import Statistics
 
-function remove_repetitions(rows)
-    rows = sort(rows, r -> r.datetime)
-    return Iterators.flatten(
-        (
-            (rows[1],),
-            Iterators.flatten(
-                map(
-                    (s, e) -> s.value == e.value ? () : (e,),
-                    zip(rows[1 : end - 1], rows[2 : end]),
-                ),
-            ),
-        ),
-    )
+function remove_repetitions(rows; by = r -> r.value)
+    rs = [rows[1]]
+    for r in rows[2 : end]
+        if by(r) != by(rs[end])
+            push!(rs, r)
+        end
+    end
+    return rs
+end
+
+function partition(rows; by = identity)
+    rss = [[rows[1]]]
+    for r in rows[2 : end]
+        if by(r) != by(rss[end][end])
+            push!(rss, [r])
+        else
+            push!(rss[end], r)
+        end
+    end
+    return rss
 end
 
 """
@@ -24,82 +31,70 @@ end
 
 Adapted from https://en.wikipedia.org/wiki/Outlier, #Tukey's_fences.
 """
-function filtertukeysfences(rows; tukeysfences = 3)
-    q1, q2, q3 = Statistics.quantile(
-        (r.values for r in rows),
-        (0.25, 0.50, 0.75),
-    )
-    fence1 = q2 + tukeysfences * (q1 - q2)
-    fence2 = q2 + tukeysfences * (q3 - q2)
-    return (
-        r
-        for r in rows
-        if (
-            r.value > fence1 &&
-            r.value < fence2
+function filtertukeysfences(rows; by = r -> Dates.week(r.datetime), tukeysfences = 3, kwargs...)
+    rs = []
+    for part in partition(rows; by = by)
+        q1, q2, q3 = Statistics.quantile(
+            map(r -> r.value, part),
+            (0.25, 0.50, 0.75),
         )
-    )
-end
-
-function groupby(rows, by)
-    groups = Dict()
-    for r in rows
-        push!(get!(groups, by(r), Set()), r)
+        fence1 = q2 + tukeysfences * (q1 - q2)
+        fence2 = q2 + tukeysfences * (q3 - q2)
+        append!(
+            rs,
+            filter!(
+                r -> (
+                    r.value > fence1 &&
+                    r.value < fence2
+                ),
+                part,
+            ),
+        )
     end
-    return groups
+    return rs
 end
 
-function filtertukeysfences(rows; tukeysperiod = Dates.Week, kwargs...)
-    return Iterators.flatten(
-        (
-            filtertukeysfences(rows; kwargs...)
-            for rows in values(groupby(rows, by))
+function interpolate1(s, e, t)
+    S = Dates.value(e.datetime - t)
+    E = Dates.value(t - s.datetime)
+    T = S + E
+    S = S / T
+    E = E / T
+    return (;
+        :datetime => t,
+        :timezone => Dates.Time(12) + Dates.Nanosecond(
+            round(
+                S * Dates.value(s.timezone - Dates.Time(12)) +
+                E * Dates.value(e.timezone - Dates.Time(12)),
+            ),
+        ),
+        :value => (
+            S * s.value +
+            E * e.value
         ),
     )
 end
 
-function resample(s, e, t)
-    S = Dates.value(e.datetime - t)
-    E = Dates.value(t - s.datetime)
-    T = S + E
-    return (;
-        :datetime => t,
-        :timezone => (
-            S * (s.timezone - Dates.Hour(12)) +
-            E * (e.timezone - Dates.Hour(12))
-        ) / T + Dates.Hour(12),
-        :value => (
-            S * s.value +
-            E * e.value
-        ) / T,
-    )
-end
-
-function resample(s, e, p)
+function interpolates(s, e, p)
     return (
-        resample(s, e, t)
+        interpolate1(s, e, t)
         for t in ceil(s.datetime, p) : p : ceil(e.datetime - p, p)
     )
 end
 
 function resample(rows, p, q = (s, e) -> true)
-    rows = sort(rows, r -> r.datetime)
-    if typeof(q) <: Dates.Period
-        q = (s, e) -> e.datetime - s.datetime < q
+    Q = q
+    if typeof(Q) <: Dates.Period
+        Q = (s, e) -> e.datetime - s.datetime < q
     end
-    Iterators.flatten(
-        (
-            resample(s, e, period)
-            for (s, e) in zip(rows[1 : end - 1], rows[2 : end])
-            if q(s, e)
+    return collect(
+        Iterators.flatten(
+            (
+                interpolates(s, e, p)
+                for (s, e) in zip(rows[1 : end - 1], rows[2 : end])
+                if Q(s, e)
+            ),
         ),
-    )
-end
-
-function tabular(pp_)
-    return (data, p, args...; kwargs...) -> JuliaDB.table(
-        pp_(JuliaDB.rows(data), p, args...; kwargs...);
-        pkey = pkeys(data),
     )
 end
 
@@ -110,10 +105,6 @@ Preprocess a control signal, assuming, a.e., `derivative(0, signal) == 0`.
 """
 function pp0(rows, p, args...; kwargs...)
     return resample(rows, p, args...)
-end
-
-function pp0(data, args...; kwargs...)
-    return tabular(pp0)(data, args...; kwargs...)
 end
 
 """
@@ -127,22 +118,14 @@ function pp1(rows, p, args...; kwargs...)
     return resample(rows, p, args...)
 end
 
-function pp1(data, args...; kwargs...)
-    return tabular(pp1)(data, args...; kwargs...)
-end
-
 """
     pp2(rows, p, args...; kwargs...)
 
 Preprocess a measure signal, assuming, a.e., `derivative(2, signal) == 0`.
 """
 function pp2(rows, p, args...; kwargs...)
-    rows = remove_repetitions(rows)
+    rows = remove_repetitions(rows; by = r -> r.value)
     return resample(rows, p, args...)
-end
-
-function pp2(data, args...; kwargs...)
-    return tabular(pp2)(data, args...; kwargs...)
 end
 
 end
