@@ -18,7 +18,7 @@ function get(access, query; kwargs...)
                 ("&$(k)=$(v)" for (k, v) in kwargs)...
             ),
         );
-        headers=Dict(
+        headers = Dict(
             "Authorization" => "Key $(access.key)",
         ),
     )
@@ -27,10 +27,10 @@ end
 
 function json_table(json; kwargs...)
     return JuliaDB.table(
-        [
+        (
             (; (Symbol(k) => v for (k, v) in d)...)
             for d in json
-        ];
+        );
         kwargs...
     )
 end
@@ -52,6 +52,8 @@ function get_nodes(access; kwargs...)
 end
 
 function flatten_nodes(nodes)
+    # Consider removing flatten_nodes. It's usually better to keep track of
+    # the individual nodes and sensors rather tha maching it all together.
     t = JuliaDB.flatten(nodes, :sensor_ids)
     t = JuliaDB.rename(
         t,
@@ -133,6 +135,9 @@ function get_timezone(ts)
 end
 
 function get_rows(json)
+    # The timezone and the implisit DST are important for modelling social
+    # behaviours, but it would be better to have them as a separate signal
+    # rather than  as part of the timestamp. Or reconstruct from elsewhere.
     return (
         (;
             :datetime => get_datetime(v["ts"]),
@@ -147,6 +152,9 @@ function get_rows(json)
 end
 
 function get_data(access, node_id, sensor_name, dates...; kwargs...)
+    # Julias type system is better than Pythons, but still fragile,
+    # and it seems necessary to write the `rows` as one expression
+    # for JuliaDB.table to be able to infer its type.
     rows = collect(
         Iterators.flatten(
             (
