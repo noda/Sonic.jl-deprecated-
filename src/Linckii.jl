@@ -51,20 +51,20 @@ function get_nodes(access; kwargs...)
     return t
 end
 
-function flatten_nodes(nodes)
-    # Consider removing flatten_nodes. It's usually better to keep track of
-    # the individual nodes and sensors rather tha maching it all together.
-    t = JuliaDB.flatten(nodes, :sensor_ids)
-    t = JuliaDB.rename(
-        t,
-        :sensor_ids => :sensor_id,
-    )
-    t = JuliaDB.reindex(
-        t,
-        (:node_id, :sensor_id),
-    )
-    return t
-end
+# function flatten_nodes(nodes)
+#     # Consider removing flatten_nodes. It's usually better to keep track of
+#     # the individual nodes and sensors rather tha maching it all together.
+#     t = JuliaDB.flatten(nodes, :sensor_ids)
+#     t = JuliaDB.rename(
+#         t,
+#         :sensor_ids => :sensor_id,
+#     )
+#     t = JuliaDB.reindex(
+#         t,
+#         (:node_id, :sensor_id),
+#     )
+#     return t
+# end
 
 function get_devices(access; kwargs...)
     json = get(access, "device"; kwargs...)["devices"]
@@ -124,15 +124,22 @@ function get_sensors(access; kwargs...)
     return t
 end
 
+function get_cref(t, from, to)
+    return Dict(
+        r[from] => r[to]
+        for r in JuliaDB.rows(t)
+    )
+end
+
 function get_datetime(ts)
     return Dates.DateTime(ts[1 : 19])
 end
 
-function get_timezone(ts)
-    t = Dates.Time(12)
-    z = Dates.Time(ts[end - 4 : end]) - Dates.Time(0)
-    return ts[end - 5] == '-' ? t - z : t + z # 12:00:00±HH:MM
-end
+# function get_timezone(ts)
+#     t = Dates.Time(12)
+#     z = Dates.Time(ts[end - 4 : end]) - Dates.Time(0)
+#     return ts[end - 5] == '-' ? t - z : t + z # 12:00:00±HH:MM
+# end
 
 function get_rows(json)
     # The timezone and the implisit DST are important for modelling social
@@ -141,8 +148,8 @@ function get_rows(json)
     return (
         (;
             :datetime => get_datetime(v["ts"]),
-            :timezone => get_timezone(v["ts"]),
-            :node_id => Int64(d["facility"]),
+            # :timezone => get_timezone(v["ts"]),
+            # :node_id => Int64(d["facility"]),
             :variable => Symbol(d["quantity"]),
             :value => Float64(v["v"]),
         )
@@ -169,10 +176,7 @@ function get_data(access, node_id, sensor_name, dates...; kwargs...)
             ),
         ),
     )
-    return JuliaDB.table(
-        rows;
-        pkey = (:datetime, :timezone, :node_id),
-    )
+    return JuliaDB.table(rows; pkey = :datetime)
 end
 
 function set_data(access, node_id, sensor_name, data; kwargs...)

@@ -66,13 +66,13 @@ function interpolate1(s, e, t)
     E = E / T
     return (;
         :datetime => t,
-        :timezone => Dates.Time(12) + Dates.Nanosecond(
-            round(
-                S * Dates.value(s.timezone - Dates.Time(12)) +
-                E * Dates.value(e.timezone - Dates.Time(12)),
-            ),
-        ),
-        :node_id => s.node_id,
+        # :timezone => Dates.Time(12) + Dates.Nanosecond(
+        #     round(
+        #         S * Dates.value(s.timezone - Dates.Time(12)) +
+        #         E * Dates.value(e.timezone - Dates.Time(12)),
+        #     ),
+        # ),
+        # :node_id => s.node_id,
         :variable => s.variable,
         :value => (
             S * s.value +
