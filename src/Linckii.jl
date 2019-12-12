@@ -15,7 +15,7 @@ function get(access, query; kwargs...)
         join(
             (
                 "$(access.url)/api/v1/$(query)",
-                ("&$(k)=$(v)" for (k, v) in kwargs)...
+                ("&$(k)=$(v)" for (k, v) in kwargs)...,
             ),
         );
         headers = Dict(
@@ -31,7 +31,7 @@ function json_table(json; kwargs...)
             (; (Symbol(k) => v for (k, v) in d)...)
             for d in json
         );
-        kwargs...
+        kwargs...,
     )
 end
 
@@ -47,6 +47,11 @@ function get_nodes(access; kwargs...)
         t,
         :node_device => :device_id,
         :node_sensor_ids => :sensor_ids,
+    )
+    t = JuliaDB.transform(
+        t,
+        :node_name => :node_name => s -> Symbol(s),
+        :sensor_ids => :sensor_ids => sensor_ids -> map(Int64, sensor_ids),
     )
     return t
 end
@@ -77,6 +82,10 @@ function get_devices(access; kwargs...)
     t = JuliaDB.rename(
         t,
         :device_protocol_id => :protocol_id,
+    )
+    t = JuliaDB.transform(
+        t,
+        :device_name => :device_name => s -> Symbol(s),
     )
     return t
 end
@@ -124,10 +133,31 @@ function get_sensors(access; kwargs...)
     return t
 end
 
-function get_cref(t, from, to)
-    return Dict(
-        r[from] => r[to]
-        for r in JuliaDB.rows(t)
+function sitepath(secret)
+    site_name = split(split(secret.url, "://")[2], "/")[2]
+    return joinpath("db", "linckii", site_name)
+end
+
+function savesite(secret; kwargs...)
+    path = sitepath(secret)
+    mkpath(sitepath(secret))
+    for (k, v) in kwargs
+        JuliaDB.save(
+            v,
+            joinpath(path, "$(k).db"),
+        )
+    end
+end
+
+function loadsite(secret, args...)
+    path = sitepath(secret)
+    return (;
+        (
+            k => JuliaDB.load(
+                joinpath(path, "$(k).db"),
+            )
+            for k in args
+        )...,
     )
 end
 
@@ -146,12 +176,12 @@ function get_rows(json)
     # behaviours, but it would be better to have them as a separate signal
     # rather than  as part of the timestamp. Or reconstruct from elsewhere.
     return (
-        (;
-            :datetime => get_datetime(v["ts"]),
+        (
+            datetime => get_datetime(v["ts"]),
             # :timezone => get_timezone(v["ts"]),
             # :node_id => Int64(d["facility"]),
-            :variable => Symbol(d["quantity"]),
-            :value => Float64(v["v"]),
+            variable => Symbol(d["quantity"]),
+            value => Float64(v["v"]),
         )
         for d in json
         for v in d["values"]
@@ -183,44 +213,16 @@ function set_data(access, node_id, sensor_name, data; kwargs...)
     error("not implemented")
 end
 
-function sitepath(access)
-    site_name = split(split(access.url, "://")[2], "/")[2]
-    return joinpath("db", "linckii", site_name)
+function datapath(secret)
+    return joinpath(sitepath(secret), "data")
 end
 
-function savesite(access; kwargs...)
-    path = sitepath(access)
-    mkpath(sitepath(access))
-    for (k, v) in kwargs
-        JuliaDB.save(
-            v,
-            joinpath(path, "$(k).db"),
-        )
-    end
+function datapath(secret, node_id)
+    return joinpath(datapath(secret), "$(node_id)")
 end
 
-function loadsite(access, args...)
-    path = sitepath(access)
-    return (;
-        (
-            k => JuliaDB.load(
-                joinpath(path, "$(k).db"),
-            )
-            for k in args
-        )...
-    )
-end
-
-function datapath(access)
-    return joinpath(sitepath(access), "data")
-end
-
-function datapath(access, node_id)
-    return joinpath(datapath(access), "$(node_id)")
-end
-
-function datapath(access, node_id, sensor_name)
-    return joinpath(datapath(access, node_id), String(sensor_name))
+function datapath(secret, node_id, sensor_name)
+    return joinpath(datapath(secret, node_id), String(sensor_name))
 end
 
 function savedata(access, node_id, sensor_name, dates...; kwargs...)
@@ -232,9 +234,63 @@ function savedata(access, node_id, sensor_name, dates...; kwargs...)
     )
 end
 
-function loaddata(access, node_id, sensor_name)
+function loaddata(secret, node_id, sensor_name :: Symbol)
     return JuliaDB.load(
-        "$(datapath(access, node_id, sensor_name)).db",
+        "$(datapath(secret, node_id, sensor_name)).db",
+    )
+end
+
+function loaddata(secret, node_id, sensor_names)
+    return foldl(
+        JuliaDB.merge,
+        (
+            loaddata(secret, node_id, sensor_name)
+            for sensor_name in sensor_names
+        ),
+    )
+end
+
+function cf(t, from, to)
+    return Dict(
+        r[from] => r[to]
+        for r in JuliaDB.rows(t)
+    )
+end
+
+function devicecf_name(devices)
+    return cf(devices, :device_id, :device_name)
+end
+
+function devicecf_id(devices)
+    return cf(devices, :device_name, :device_id)
+end
+
+function devicecf(devices)
+    return (
+        name = devicecf_name(devices),
+        id = devicecf_id(devices),
+    )
+end
+
+function sensorcf_name(sensors)
+    return cf(sensors, :sensor_id, :sensor_name)
+end
+
+function sensorcf(sensors)
+    return (
+        name = sensorcf_name(sensors),
+    )
+end
+
+function get_pattern_nodes(patterns; nodes, sensors, kwargs...)
+    sensorcf_name = Linckii.sensorcf_name(sensors)
+    return JuliaDB.filter(
+        r -> (
+            r.device_id in keys(patterns) &&
+            Set(sensorcf_name[r_sensor_id] for r_sensor_id in r.sensor_ids) >=
+            keys(patterns[r.device_id])
+        ),
+        nodes,
     )
 end
 
