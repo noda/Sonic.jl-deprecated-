@@ -133,34 +133,6 @@ function get_sensors(access; kwargs...)
     return t
 end
 
-function sitepath(secret)
-    site_name = split(split(secret.url, "://")[2], "/")[2]
-    return joinpath("db", "linckii", site_name)
-end
-
-function savesite(secret; kwargs...)
-    path = sitepath(secret)
-    mkpath(sitepath(secret))
-    for (k, v) in kwargs
-        JuliaDB.save(
-            v,
-            joinpath(path, "$(k).db"),
-        )
-    end
-end
-
-function loadsite(secret, args...)
-    path = sitepath(secret)
-    return (;
-        (
-            k => JuliaDB.load(
-                joinpath(path, "$(k).db"),
-            )
-            for k in args
-        )...,
-    )
-end
-
 function get_datetime(ts)
     return Dates.DateTime(ts[1 : 19])
 end
@@ -177,11 +149,11 @@ function get_rows(json)
     # rather than  as part of the timestamp. Or reconstruct from elsewhere.
     return (
         (
-            datetime => get_datetime(v["ts"]),
-            # :timezone => get_timezone(v["ts"]),
-            # :node_id => Int64(d["facility"]),
-            variable => Symbol(d["quantity"]),
-            value => Float64(v["v"]),
+            datetime = get_datetime(v["ts"]),
+            # timezone = get_timezone(v["ts"]),
+            # node_id = Int64(d["facility"]),
+            variable = Symbol(d["quantity"]),
+            value = Float64(v["v"]),
         )
         for d in json
         for v in d["values"]
@@ -213,30 +185,51 @@ function set_data(access, node_id, sensor_name, data; kwargs...)
     error("not implemented")
 end
 
-function datapath(secret)
-    return joinpath(sitepath(secret), "data")
+function urlpath(secret)
+    args = ("db", "linckii", split(split(secret.url, "://")[2], "/")[2])
+    return joinpath(args...)
 end
 
-function datapath(secret, node_id)
-    return joinpath(datapath(secret), "$(node_id)")
+function db_path(args...; db = nothing)
+    args = map(arg -> "$(arg)", args)
+    args = isnothing(db) ? args : (args..., "$(db).db")
+    return joinpath(args...)
 end
 
-function datapath(secret, node_id, sensor_name)
-    return joinpath(datapath(secret, node_id), String(sensor_name))
+function savesite(secret; kwargs...)
+    p = urlpath(secret)
+    mkpath(p)
+    for (k, v) in kwargs
+        JuliaDB.save(v, db_path(p; db = k))
+    end
+end
+
+function loadsite(secret, args...)
+    p = urlpath(secret)
+    return (;
+        (
+            k => JuliaDB.load(db_path(p; db = k))
+            for k in args
+        )...,
+    )
 end
 
 function savedata(access, node_id, sensor_name, dates...; kwargs...)
     data = get_data(access, node_id, sensor_name, dates...; kwargs...)
-    mkpath(datapath(access, node_id))
+    p = urlpath(access)
+    p = db_path(p, "data", node_id)
+    mkpath(p)
     JuliaDB.save(
         data,
-        "$(datapath(access, node_id, sensor_name)).db",
+        db_path(p; db = sensor_name),
     )
 end
 
 function loaddata(secret, node_id, sensor_name :: Symbol)
+    p = urlpath(secret)
+    p = db_path(p, "data", node_id)
     return JuliaDB.load(
-        "$(datapath(secret, node_id, sensor_name)).db",
+        db_path(p; db = sensor_name),
     )
 end
 

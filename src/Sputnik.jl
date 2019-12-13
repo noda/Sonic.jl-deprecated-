@@ -1,5 +1,18 @@
 module Sputnik
 
+"""
+## HEKA
+* Primary differential temperature
+* Volume weighted primary differential temperature
+* Primary return temperature
+* Volume weighted primary return temperature
+* Volume per energy
+* Overflow
+* Balance temperature
+* Domestic hot water quota
+* Energy signature
+"""
+
 # def compute_sensors(dataframe, freqH):
 #     compute_sensors_lambdas = {
 #         'Day':
