@@ -96,11 +96,11 @@ function resample(rows, p, q = (s, e) -> true)
     end
     return collect(
         Iterators.flatten(
-            (
+            [
                 interpolates(s, e, p)
                 for (s, e) in zip(rows[1 : end - 1], rows[2 : end])
                 if q(s, e)
-            ),
+            ],
         ),
     )
 end

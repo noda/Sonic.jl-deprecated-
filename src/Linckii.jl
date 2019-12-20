@@ -10,29 +10,21 @@ function get_access(secret)
     return secret
 end
 
-function get(access, query; kwargs...)
+function get(access, resource_name; kwargs...)
     response = HTTP.get(
-        join(
-            (
-                "$(access.url)/api/v1/$(query)",
-                ("&$(k)=$(v)" for (k, v) in kwargs)...,
-            ),
-        );
-        headers = Dict(
-            "Authorization" => "Key $(access.key)",
-        ),
+        "$(access.source.endpoint)/$(resource_name)",
+        ["Authorization" => "Key $(access.source.password)"];
+        kwargs...
     )
     return JSON.parse(String(response.body))
 end
 
+function json_row(d)
+    return (; (Symbol(k) => v for (k, v) in sort(d))...)
+end
+
 function json_table(json; kwargs...)
-    return JuliaDB.table(
-        (
-            (; (Symbol(k) => v for (k, v) in d)...)
-            for d in json
-        );
-        kwargs...,
-    )
+    return JuliaDB.table(map(json_row, json); kwargs...)
 end
 
 function get_nodes(access; kwargs...)
@@ -55,21 +47,6 @@ function get_nodes(access; kwargs...)
     )
     return t
 end
-
-# function flatten_nodes(nodes)
-#     # Consider removing flatten_nodes. It's usually better to keep track of
-#     # the individual nodes and sensors rather tha maching it all together.
-#     t = JuliaDB.flatten(nodes, :sensor_ids)
-#     t = JuliaDB.rename(
-#         t,
-#         :sensor_ids => :sensor_id,
-#     )
-#     t = JuliaDB.reindex(
-#         t,
-#         (:node_id, :sensor_id),
-#     )
-#     return t
-# end
 
 function get_devices(access; kwargs...)
     json = get(access, "device"; kwargs...)["devices"]
@@ -147,7 +124,7 @@ function get_rows(json)
     # The timezone and the implisit DST are important for modelling social
     # behaviours, but it would be better to have them as a separate signal
     # rather than  as part of the timestamp. Or reconstruct from elsewhere.
-    return (
+    return [
         (
             datetime = get_datetime(v["ts"]),
             # timezone = get_timezone(v["ts"]),
@@ -157,89 +134,89 @@ function get_rows(json)
         )
         for d in json
         for v in d["values"]
+        if "v" in keys(v)
+    ]
+end
+
+function get_data(access, node_id, sensor_name, date1, date2; kwargs...)
+    return get_rows(
+        get(
+            access,
+            "query/measurement?start=$(s)&end=$(e)";
+            node_id = node_id, quantity = sensor_name, kwargs...
+        )["data"],
     )
 end
 
-function get_data(access, node_id, sensor_name, dates...; kwargs...)
+function get_data(access, node_id, sensor_name, dates; kwargs...)
     # Julias type system is better than Pythons, but still fragile,
     # and it seems necessary to write the `rows` as one expression
     # for JuliaDB.table to be able to infer its type.
-    rows = collect(
+    return collect(
         Iterators.flatten(
-            (
-                get_rows(
-                    get(
-                        access,
-                        "query/measurement?start=$(s)&end=$(e)";
-                        node_id = node_id, quantity = sensor_name, kwargs...
-                    )["data"],
-                )
+            [
+                get_data(access, node_id, sensor_name, s, e; kwargs...)
                 for (s, e) in zip(dates[1 : end - 1], dates[2 : end])
-            ),
+            ],
         ),
     )
-    return JuliaDB.table(rows; pkey = :datetime)
 end
 
 function set_data(access, node_id, sensor_name, data; kwargs...)
     error("not implemented")
 end
 
-function urlpath(secret)
-    args = ("db", "linckii", split(split(secret.url, "://")[2], "/")[2])
-    return joinpath(args...)
-end
-
-function db_path(args...; db = nothing)
+function dbpath(args...; db = nothing)
     args = map(arg -> "$(arg)", args)
     args = isnothing(db) ? args : (args..., "$(db).db")
     return joinpath(args...)
 end
 
 function savesite(secret; kwargs...)
-    p = urlpath(secret)
+    p = secret.target
     mkpath(p)
     for (k, v) in kwargs
-        JuliaDB.save(v, db_path(p; db = k))
+        JuliaDB.save(v, dbpath(p; db = k))
     end
 end
 
 function loadsite(secret, args...)
-    p = urlpath(secret)
+    p = secret.target
     return (;
         (
-            k => JuliaDB.load(db_path(p; db = k))
+            k => JuliaDB.load(dbpath(p; db = k))
             for k in args
-        )...,
+        )...
     )
 end
 
 function savedata(access, node_id, sensor_name, dates...; kwargs...)
-    data = get_data(access, node_id, sensor_name, dates...; kwargs...)
-    p = urlpath(access)
-    p = db_path(p, "data", node_id)
+    rows = get_data(access, node_id, sensor_name, dates...; kwargs...)
+    data = JuliaDB.table(rows, pkey = :datetime)
+    p = access.target
+    p = dbpath(p, "data", node_id)
     mkpath(p)
     JuliaDB.save(
         data,
-        db_path(p; db = sensor_name),
+        dbpath(p; db = sensor_name),
     )
 end
 
 function loaddata(secret, node_id, sensor_name :: Symbol)
-    p = urlpath(secret)
-    p = db_path(p, "data", node_id)
+    p = secret.target
+    p = dbpath(p, "data", node_id)
     return JuliaDB.load(
-        db_path(p; db = sensor_name),
+        dbpath(p; db = sensor_name),
     )
 end
 
 function loaddata(secret, node_id, sensor_names)
     return foldl(
         JuliaDB.merge,
-        (
+        [
             loaddata(secret, node_id, sensor_name)
             for sensor_name in sensor_names
-        ),
+        ],
     )
 end
 
