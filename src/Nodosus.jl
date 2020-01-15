@@ -1,8 +1,9 @@
 module Nodosus
 
 import Dates
-import JuliaDB
+# import JuliaDB
 import Statistics
+import Unitful
 
 """
     partition(f, xs, by = identity)
@@ -27,7 +28,7 @@ function partition(f, xs, by = identity)
         end
         push!(ys, f(xs[s : end]))
     end
-    return ys
+    ys
 end
 
 """
@@ -36,7 +37,44 @@ end
 Drop repetitions.
 """
 function dropre(xs, by)
-    return partition(first, xs, by)
+    partition(first, xs, by)
+end
+
+"""
+    upreferred
+
+Preferred units when other than the Unitful preferred units. Consider using
+Unitful.preferunits, e.g., Unitful.preferredunits(Unitful.hr).
+"""
+upreferred = let
+    u1 = Unitful.°C
+    u2 = Unitful.m ^ 3 / Unitful.hr
+    u3 = Unitful.kW
+    u4 = Unitful.kW    * Unitful.hr
+    Dict(
+        Symbol(Unitful.upreferred(u1)) => u1,
+        Symbol(Unitful.upreferred(u2)) => u2,
+        Symbol(Unitful.upreferred(u3)) => u3,
+        Symbol(Unitful.upreferred(u4)) => u4,
+    )
+end
+
+"""
+    uconvert(xs, unit)
+
+Convert from `unit` to preferred unit.
+"""
+function uconvert(rs, unit)
+    u = Unitful.upreferred(unit)
+    u = get(upreferred, Symbol(u), u)
+    m = Unitful.ustrip(Unitful.uconvert(u, 1.0 * unit))
+    map(
+        r -> (
+            datetime = r.datetime,
+            value = r.value * m,
+        ),
+        rs,
+    )
 end
 
 """
@@ -64,7 +102,7 @@ function filtertf(rows; by = Dates.week, tf = 3)
             ),
         )
     end
-    return rs
+    rs
 end
 
 function interpolate1(s, e, t)
@@ -73,7 +111,7 @@ function interpolate1(s, e, t)
     T = S + E
     S = S / T
     E = E / T
-    return (
+    (
         datetime = t,
         value = (
             S * s.value +
@@ -83,7 +121,7 @@ function interpolate1(s, e, t)
 end
 
 function interpolates(s, e, p)
-    return (
+    (
         interpolate1(s, e, t)
         for t in ceil(s.datetime, p) : p : ceil(e.datetime - p, p)
     )
@@ -94,7 +132,7 @@ function resample(rows, p, q = (s, e) -> true)
         q_period = q
         q = (s, e) -> e.datetime - s.datetime < q_period
     end
-    return collect(
+    collect(
         Iterators.flatten(
             [
                 interpolates(s, e, p)
@@ -106,42 +144,45 @@ function resample(rows, p, q = (s, e) -> true)
 end
 
 """
-    preprocess0(rows, p, [q = (s, e) -> true])
+    preprocess0(rows, unit, p, [q = (s, e) -> true])
 
 Preprocess a control series.
 """
-function preprocess0(rows, p, args...)
+function preprocess0(rows, unit, p, args...)
     rs = sort(rows; by = r -> r.datetime)
     rs = dropre(rs, :datetime)
+    rs = uconvert(rs, unit)
     rs = resample(rs, p, args...)
-    return rs
+    rs
 end
 
 """
-    preprocess1(rows, p, [q = (s, e) -> true]; by = Dates.week, tf = 3)
+    preprocess1(rows, unit, p, [q = (s, e) -> true]; by = Dates.week, tf = 3)
 
 Preprocess a measure series.
 """
-function preprocess1(rows, p, args...; kwargs...)
+function preprocess1(rows, unit, p, args...; kwargs...)
     rs = sort(rows; by = r -> r.datetime)
     rs = dropre(rs, :datetime)
     rs = dropre(rs, :value)
+    rs = uconvert(rs, unit)
     rs = filtertf(rs; kwargs...)
     rs = resample(rs, p, args...)
-    return rs
+    rs
 end
 
 """
-    preprocess2(rows, p, [q = (s, e) -> true])
+    preprocess2(rows, unit, p, [q = (s, e) -> true])
 
 Preprocess a measure series of integrated values.
 """
-function preprocess2(rows, p, args...)
+function preprocess2(rows, unit, p, args...)
     rs = sort(rows; by = r -> r.datetime)
     rs = dropre(rs, :datetime)
     rs = dropre(rs, :value)
+    rs = uconvert(rs, unit)
     rs = resample(rs, p, args...)
-    return rs
+    rs
 end
 
 """
@@ -150,12 +191,14 @@ end
 Preprocess data according to pattern.
 """
 function preprocess(data, pattern)
-    return JuliaDB.reindex(
+    JuliaDB.reindex(
         JuliaDB.groupby(data, :variable; flatten = true, usekey = true) do k, rs
             return pattern[k.variable](rs)
         end,
         :datetime,
     )
 end
+
+# Add functions for scanning directories and compiling CSV files.
 
 end
