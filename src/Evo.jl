@@ -9,7 +9,7 @@ import Unitful
 
 function get_access(secret)
     response = HTTP.get(
-        "$(secret.source.endpoint)/authenticate",
+        "$(secret.source.endpoint)/api/v1/user-service/authenticate",
         [
             "Authorization" => "Basic $(
                 Base64.base64encode(
@@ -27,7 +27,7 @@ end
 
 function get(access, resource_name; kwargs...)
     response = HTTP.get(
-        "$(access.source.endpoint)/$(resource_name)",
+        "$(access.source.endpoint)/api/internal/v1/$(resource_name)",
         ["Authorization" => "Bearer $(access.bearer)"];
         kwargs...
     )
@@ -48,12 +48,12 @@ end
 function get_content(access, date1, date2, page; kwargs...)
     return map(
         json -> (
-            collectionPercentage = Float64(json["collectionPercentage"]),
-            facility = Symbol(json["facility"]),
-            gatewaySerial = Symbol(json["gatewaySerial"]),
+            # collectionPercentage = Float64(json["collectionPercentage"]),
+            # facility = Symbol(json["facility"]),
+            # gatewaySerial = Symbol(json["gatewaySerial"]),
             id = Symbol(json["id"]),
             isReported = Bool(json["isReported"]),
-            location = json["location"],
+            # location = json["location"],
             # location = let json = json["location"] (
             #     address = Symbol(json["address"]),
             #     city = Symbol(json["city"]),
@@ -65,10 +65,10 @@ function get_content(access, date1, date2, page; kwargs...)
             #     ),
             #     zip = Symbol(json["zip"]),
             # ),
-            manufacturer = Symbol(json["manufacturer"]),
-            medium = Symbol(json["medium"]),
-            organisationId = Symbol(json["organisationId"]),
-            readIntervalMinutes = Int64(json["readIntervalMinutes"]),
+            # manufacturer = Symbol(json["manufacturer"]),
+            # medium = Symbol(json["medium"]),
+            # organisationId = Symbol(json["organisationId"]),
+            readIntervalMinutes = Dates.Minute(Int64(json["readIntervalMinutes"])),
         ),
         get_meters(access, date1, date2, page; kwargs...)["content"],
     )
@@ -90,7 +90,7 @@ end
 
 function post(access, resource_name, body; kwargs...)
     response = HTTP.post(
-        "$(access.source.endpoint)/$(resource_name)",
+        "$(access.source.endpoint)/api/internal/v1/$(resource_name)",
         [
             "Authorization" => "Bearer $(access.bearer)",
             "Content-Type"  => "application/json",
