@@ -85,15 +85,15 @@ end
 function meta_transform(json)
     map(
         json -> (
-            # address = parse(Int64, String(json["address"])),
-            # facility = parse(Int64, String(json["facility"])),
-            # gatewaySerial = parse(Int64, String(json["gatewaySerial"])),
+            address = String(json["address"]),
+            facility = String(json["facility"]),
+            gatewaySerial = String(json["gatewaySerial"]),
             id = String(json["id"]),
             isReported = Bool(json["isReported"]),
-            # location = json["location"],
-            # manufacturer = String(json["manufacturer"]),
-            # medium = String(json["medium"]),
-            # organisationId = String(json["organisationId"]),
+            location = json["location"],
+            manufacturer = String(json["manufacturer"]),
+            medium = String(json["medium"]),
+            organisationId = String(json["organisationId"]),
             readIntervalMinutes = Dates.Minute(Int64(json["readIntervalMinutes"])),
         ),
         json["content"],
