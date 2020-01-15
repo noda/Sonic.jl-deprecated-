@@ -3,8 +3,8 @@ module EvoConfigs
 veab = (
     database = joinpath("db", "veab"),
     endpoint = "https://evo.elvaco.se",
-    password = "YOUR PASSWORD ",
-    username = "YOUR USERNAME",
+    password = "",
+    username = "jens.brage@noda.se",
 )
 
 end
