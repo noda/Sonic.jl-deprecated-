@@ -1,0 +1,4 @@
+name = "Sonic"
+uuid = "f0ce1bc7-7bef-48b0-840b-89370492c505"
+authors = ["Jens Brage <jens.brage@noda.se>"]
+version = "0.1.0"
