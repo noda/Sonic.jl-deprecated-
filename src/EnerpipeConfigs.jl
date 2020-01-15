@@ -1,7 +1,7 @@
 module EnerpipeConfigs
 
 winsbach = (
-    database = joinpath("database", "winsbach"),
+    database = joinpath("db", "winsbach"),
 )
 
 end

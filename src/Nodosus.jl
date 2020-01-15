@@ -185,19 +185,19 @@ function preprocess2(rows, unit, p, args...)
     rs
 end
 
-"""
-    preprocess(data, pattern)
-
-Preprocess data according to pattern.
-"""
-function preprocess(data, pattern)
-    JuliaDB.reindex(
-        JuliaDB.groupby(data, :variable; flatten = true, usekey = true) do k, rs
-            return pattern[k.variable](rs)
-        end,
-        :datetime,
-    )
-end
+# """
+#     preprocess(data, pattern)
+#
+# Preprocess data according to pattern.
+# """
+# function preprocess(data, pattern)
+#     JuliaDB.reindex(
+#         JuliaDB.groupby(data, :variable; flatten = true, usekey = true) do k, rs
+#             return pattern[k.variable](rs)
+#         end,
+#         :datetime,
+#     )
+# end
 
 # Add functions for scanning directories and compiling CSV files.
 
