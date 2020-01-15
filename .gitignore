@@ -9,4 +9,4 @@ deps/deps.jl
 **/.ipynb_checkpoints
 
 **/db/*
-**/*Secrets.jl
+**/*Configs.jl
