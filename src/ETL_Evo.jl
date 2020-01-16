@@ -10,7 +10,7 @@ import Unitful
 
 include("./Nodosus.jl")
 
-function GET_access(config)
+function get_access(config)
     r = HTTP.get(
         "$(config.endpoint)/api/v1/user-service/authenticate",
         [
@@ -180,6 +180,12 @@ function data_transform(json)
     )
 end
 
+"""
+loaddata = extract
+
+This function should preferably take care of renaming of variables and the
+rescaling to standard units, and answer with (:datetime=,:variable=,:value=).
+"""
 function loaddata(config, resource, variable)
     rs = nothing
     r = joinpath(
@@ -216,40 +222,71 @@ default_preprocessor = let
     )
 end
 
-function save(access, dates...; preprocessor = default_preprocessor)
+rename = Dict(
+    Symbol("Energy")                => :energy,
+    Symbol("Flow")                  => :flow,
+    Symbol("Forward temperature")   => :supply,
+    Symbol("Power")                 => :power,
+    Symbol("Return temperature")    => :return,
+    Symbol("Volume")                => :volume,
+)
+
+"""
+The functions download and transform both tend to take a lot of time, and
+sometimes even load. It would be good if they could log progress or estimated
+time remaining every minute or so. It would also be good if extract also
+extracted some metadata to be saved together with the processed data for
+presentation purposes.
+"""
+
+function download(config, dates...; preprocessor = default_preprocessor)
+    access = ETL.get_access(config)
     savemeta(access, dates...)
-    meta = loadmeta(access)
+    meta = loadmeta(config)
+    for r in meta
+        try
+            for (variable, pp) in preprocessor
+                savedata(access, r.id, variable, dates...)
+            end
+        catch
+        end
+    end
+end
+
+function extract(config, resource, variable)
+    loaddata(config, resource, variable)
+end
+
+function transform(config; preprocessor = default_preprocessor)
+    meta = loadmeta(config)
     for r in meta
         p = joinpath(
-            access.database,
+            config.database,
             "data",
             "$(r.id).csv",
         )
-        if !isfile(p)
-            try
-                t = (
-                    datetime = Dates.DateTime[],
-                    variable = Symbol[],
-                    value = Float64[],
-                )
-                for (variable, pp) in preprocessor
-                    savedata(access, r.id, variable, dates...)
-                    unit, xs = loaddata(access, r.id, variable)
-                    xs = pp(xs, unit)
-                    for x in xs
-                        push!(t.datetime, x.datetime)
-                        push!(t.variable, variable)
-                        push!(t.value, x.value)
-                    end
+        try
+            t = (
+                datetime = Dates.DateTime[],
+                variable = Symbol[],
+                value = Float64[],
+            )
+            for (variable, pp) in preprocessor
+                unit, xs = extract(config, r.id, variable)
+                xs = pp(xs, unit)
+                for x in xs
+                    push!(t.datetime, x.datetime)
+                    push!(t.variable, rename[variable])
+                    push!(t.value, x.value)
                 end
-                if isempty(t.datetime)
-                    error("empty")
-                end
-                CSV.write(p, DataFrames.unstack(DataFrames.DataFrame(t)))
-                println("$(p): saved")
-            catch e
-                println("$(p): $(e)")
             end
+            if isempty(t.datetime)
+                error("empty")
+            end
+            CSV.write(p, DataFrames.unstack(DataFrames.DataFrame(t)))
+            println("$(p): transformed")
+        catch e
+            println("$(p): $(e)")
         end
     end
 end
@@ -263,9 +300,9 @@ function load(config, resource)
     )
     try
         df = CSV.read(p)
-        println("$(p): loaded")
+        # println("$(p): loaded")
     catch e
-        println("$(p): $(e)")
+        # println("$(p): $(e)")
         rethrow(e)
     end
     df
@@ -277,7 +314,7 @@ function load(config)
         config.database,
         "data",
     )
-    for s in filter(s -> endswith(s, ".csv"), readdir(p))
+    for s in filter(s -> endswith(s, ".csv"), readdir(r))
         try
             resource = s[1 : end - 4]
             d[resource] = load(config, resource)
@@ -300,8 +337,12 @@ function test(config)
             recursive = true,
         )
     end
-    config = GET_access(config)
-    save(access, Dates.DateTime("2020-01-01"), Dates.DateTime("2020-01-02"))
+    access = get_access(config)
+    download(
+        access,
+        Dates.DateTime("2020-01-01"),
+        Dates.DateTime("2020-01-02"),
+    )
     load(config)
     mv(
         joinpath(config.database, "data"),

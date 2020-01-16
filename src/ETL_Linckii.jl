@@ -9,7 +9,7 @@ import Unitful
 
 include("./Nodosus.jl")
 
-function GET_access(config)
+function get_access(config)
     (;
         config...,
     )
@@ -196,6 +196,12 @@ function data_transform(json)
     )
 end
 
+"""
+loaddata = extract
+
+This function should preferably take care of renaming of variables and the
+rescaling to standard units, and answer with (:datetime=,:variable=,:value=).
+"""
 function loaddata(config, resource, variable)
     rs = []
     r = joinpath(
@@ -243,12 +249,13 @@ default_preprocessor = let
     )
 end
 
-function save(access, dates...; preprocessor = default_preprocessor)
+function download(config, dates...; preprocessor = default_preprocessor)
+    access = get_access(config)
     meta = (;
         (
             Symbol(r) => begin
                 savemeta(access, r)
-                loadmeta(access, r)
+                loadmeta(config, r)
             end
             for r in ["device", "sensor", "node"]
         )...,
@@ -288,7 +295,7 @@ function save(access, dates...; preprocessor = default_preprocessor)
                 )
                 for (sensor_name, pp) in preprocessor[r.device_id]
                     savedata(access, r.node_id, sensor_name, dates...)
-                    xs = loaddata(access, r.node_id, sensor_name)
+                    xs = loaddata(config, r.node_id, sensor_name)
                     xs = pp(xs, unit[prot[r.device_id], sensor_name])
                     for x in xs
                         push!(t.datetime, x.datetime)
@@ -308,6 +315,12 @@ function save(access, dates...; preprocessor = default_preprocessor)
     end
 end
 
+function extract(config)
+end
+
+function transform(config)
+end
+
 function load(config, node_id)
     df = nothing
     p = joinpath(
@@ -317,9 +330,9 @@ function load(config, node_id)
     )
     try
         df = CSV.read(p)
-        println("$(p): loaded")
+        # println("$(p): loaded")
     catch e
-        println("$(p): $(e)")
+        # println("$(p): $(e)")
         rethrow(e)
     end
     df
@@ -354,8 +367,12 @@ function test(config)
             recursive = true,
         )
     end
-    access = GET_access(config)
-    save(access, Dates.DateTime("2020-01-01"), Dates.DateTime("2020-01-02"))
+    access = get_access(config)
+    download(
+        access,
+        Dates.DateTime("2020-01-01"),
+        Dates.DateTime("2020-01-02"),
+    )
     load(config)
     mv(
         joinpath(config.database, "data"),
