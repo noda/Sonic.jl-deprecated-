@@ -257,7 +257,7 @@ end
 function load(config, resource)
     df = nothing
     p = joinpath(
-        access.database,
+        config.database,
         "data",
         "$(resource).csv",
     )
@@ -274,7 +274,7 @@ end
 function load(config)
     d = Dict()
     r = joinpath(
-        access.database,
+        config.database,
         "data",
     )
     for s in filter(s -> endswith(s, ".csv"), readdir(p))
@@ -300,7 +300,7 @@ function test(config)
             recursive = true,
         )
     end
-    access = GET_access(config)
+    config = GET_access(config)
     save(access, Dates.DateTime("2020-01-01"), Dates.DateTime("2020-01-02"))
     load(config)
     mv(
