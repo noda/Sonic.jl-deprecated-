@@ -7,6 +7,4 @@ deps/deps.jl
 
 **/.DS_Store
 **/.ipynb_checkpoints
-
 **/db/*
-**/*Configs.jl
